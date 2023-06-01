@@ -1,0 +1,136 @@
+'''Importar librerias para la interfaz '''
+
+import builtins 
+import tkinter as tk
+from tkinter import *
+import serial, time 
+from Adafruit_IO import Client, RequestError, Feed  
+import struct 
+
+root = Tk()
+
+root.counter = 0
+root.timer_running = False
+root.start_time = 0
+
+'''-----------------------Configuración de la comunicación serial-----------------------'''
+puerto_comunicación = serial.Serial('COM6', baudrate=9600, timeout= 10, parity= 'N', stopbits= serial.STOPBITS_ONE, bytesize= serial.EIGHTBITS)
+
+'''-----------------------------Configuracion de adafruit------------------------------------'''
+ADAFRUIT_IO_USERNAME = "KarlaMLC"
+ADAFRUIT_IO_KEY = "aio_raIH96pngVnj9PUVKV5vQZGSr7ER"
+
+aio = Client(ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY)
+
+
+'''-------------Comunicacion de GUI a ADAFRUIT----------------------------------'''
+
+digital_feed = aio.feeds ('valor3')
+
+aio.send_data(digital_feed.key, root.counter)
+digital_data = aio.receive(digital_feed.key)
+
+adafruit_suma = aio.receive('valor1').value
+global valor_serial 
+
+def enviar_por_serial(valor):
+    # Convertir el valor a un entero de 32 bits (4 bytes)
+    valor_bytes = struct.pack('i', valor)
+    puerto_comunicación.write(valor_bytes)  # Enviar el valor por comunicación serial
+
+
+
+# Funciones para los botones del GUI
+def start_timer():
+    root.timer_running = True
+    root.start_time = time.time()
+    digital_feed = aio.feeds('valor22')
+    aio.send_data(digital_feed.key, root.counter)
+
+def Read_Serial():
+    
+    valor_serial = puerto_comunicación.read().decode('utf-8').strip()
+    print("Valor recibido:", valor_serial)
+    digital_feed = aio.feeds('valor22')
+
+    if valor_serial == 'U':
+        # Se recibió el valor "U", iniciar el cronómetro
+        start_timer()
+        valor_serial = puerto_comunicación.read().decode('utf-8').strip()
+    
+        
+    if valor_serial == 'F':
+        # Se recibió el valor "F", detener el cronómetro
+        stop_timer()
+        L['text'] = 'Tiempo Final: {} segundos'.format(root.counter)
+
+    if valor_serial.isdigit():
+       L['text'] = 'Tiempo anterior: {} segundos'.format(valor_serial)
+   
+        
+    else:
+        pass
+       
+
+    valor_serial="N"
+    print("Valor recibido:", valor_serial)    
+
+
+
+def stop_timer():
+    root.timer_running = False
+    elapsed_time = int(time.time() - root.start_time)
+    root.counter = elapsed_time
+    L['text'] = 'Tiempo Final: {} segundos'.format(root.counter)
+    # Actualizar el valor en Adafruit IO
+    aio.send_data(digital_feed.key, root.counter)
+    #Envio Serial
+    enviar_por_serial(root.counter)
+    # Actualizar la etiqueta en la GUI
+    
+
+    
+
+titulo = tk.Label(root, text="-------------PROYECTO------------")
+titulo.place(x=90, y=20)
+subtitulo = tk.Label(root, text="Comunicacion ada")
+subtitulo.place(x=115, y=50)
+
+b1 = tk.Button(root, text="Iniciar", command=start_timer)
+b1.place(x=150, y=80)
+
+b2 = tk.Button(root, text="Detener", command=stop_timer)
+b2.place(x=150, y=150)
+
+b3 = tk.Button(root, text="LEER", command=Read_Serial)
+b3.place(x=50, y=150)
+
+
+
+L = tk.Label(root, text="No se ha iniciado el cronómetro")
+L.pack()
+
+
+def update_timer():
+     
+     
+    if root.timer_running:
+        Read_Serial()
+        
+        elapsed_time = int(time.time() - root.start_time)
+        root.counter = elapsed_time
+
+            # Actualizar el valor en Adafruit IO
+        digital_feed = aio.feeds('valor22')
+        aio.send_data(digital_feed.key, root.counter)
+
+        # Actualizar la etiqueta en la GUI
+        L['text'] = 'Tiempo transcurrido: {} segundos'.format(root.counter)
+
+    
+
+    root.after(1000, update_timer)
+    
+root.after(1000, update_timer)
+
+root.mainloop()

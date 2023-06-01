@@ -1,0 +1,224 @@
+
+// PIC16F887 Configuration Bit Settings
+
+// 'C' source line config statements
+
+// CONFIG1
+#pragma config FOSC = INTRC_NOCLKOUT
+#pragma config WDTE = OFF
+#pragma config PWRTE = OFF
+#pragma config MCLRE = OFF
+#pragma config CP = OFF
+#pragma config CPD = OFF
+#pragma config BOREN = OFF
+#pragma config IESO = OFF
+#pragma config FCMEN = OFF
+#pragma config LVP = OFF
+
+#pragma config BOR4V = BOR40V
+#pragma config WRT = OFF
+        
+#include <xc.h>
+
+#include <stdio.h>
+
+#define _XTAL_FREQ 8000000
+
+void CADENA(char txt[]); 
+char valor[];
+unsigned int tiempo; 
+char opcion;
+uint8_t cont;
+uint8_t dato_ant;
+uint8_t valp3;
+uint8_t valp4;
+//void inter_COMS();
+void setup(void);
+
+    
+void __interrupt() isr(void){
+    if(RCIF){
+      
+       RCIF=0;
+    }
+    
+    if (PIR1bits.ADIF){
+        if (ADCON0bits.CHS == 0b0000){
+            CCPR1L = (ADRESH>>1)+124;
+            CCP1CONbits.DC1B1 = ADRESH & 0b01;
+            CCP1CONbits.DC1B0 = ADRESL >> 7;
+            
+        }
+        else if(ADCON0bits.CHS == 0b0001){
+            CCPR2L = (ADRESH>>1)+124;
+            CCP2CONbits.DC2B1 = ADRESH & 0b01;
+            CCP2CONbits.DC2B0 = ADRESL >> 7;
+        }
+        else if(ADCON0bits.CHS == 0b0011){
+            valp4 = ADRESH;
+        PIR1bits.ADIF = 0;
+        }
+        else 
+            valp3 = ADRESH;
+        PIR1bits.ADIF = 0;
+    }
+    
+    
+    if (INTCONbits.T0IF){
+         
+        //mapeo serco3
+         OPTION_REGbits.PSA = 0; // Asigna el prescaler al Timer0
+         OPTION_REGbits.PS =  valp3/55; // mapea valor de prescaler
+         __delay_us(500);
+         
+         //mapeo motor DC
+        cont++;
+        if (cont < valp4){
+            PORTDbits.RD1 = 1;
+        }
+        else
+            PORTDbits.RD1 = 0;
+         
+        //generacion de señal servomotor3 
+        if (PORTDbits.RD0 = 1){
+            PORTDbits.RD0 = 0;
+           __delay_us(500); //1000
+        }
+        
+        else
+             __delay_us(500);
+            PORTDbits.RD0 = 1;
+        //
+         
+            
+            //valor timmer0
+        TMR0 =255 ;
+        __delay_us(100);
+        INTCONbits.T0IF = 0;
+        
+        
+         
+} 
+     
+    
+}
+void main(void) {
+    setup();
+    //COMS();
+    
+   
+    while(1){
+        
+        
+        // Mostramos el menú en la hiperterminal
+        //printf("%s\n", valor);
+        
+        if(ADCON0bits.GO == 0){
+            if(ADCON0bits.CHS == 0b0000)
+                ADCON0bits.CHS = 0b0001;
+            else if(ADCON0bits.CHS == 0b0001)
+                 ADCON0bits.CHS = 0b0010;
+            else if(ADCON0bits.CHS == 0b0010)
+                 ADCON0bits.CHS = 0b0011;
+            else        
+                ADCON0bits.CHS = 0b0000;
+            __delay_us(1000); //1000
+            ADCON0bits.GO = 1;  
+        }
+        
+        if (PORTBbits.RB0==1){
+            char texto[] = "U";
+           CADENA(texto);
+
+        }
+        if (PORTBbits.RB1==0){
+            char texto[] = "F";
+           CADENA(texto);
+
+        }
+        
+          __delay_ms(10); 
+            
+        }
+    }
+    
+
+
+void CADENA(char txt[]){
+    int i = 0;
+    while(txt[i] != '\0'){
+        while(!TXSTAbits.TRMT);
+        TXREG = txt[i]; // Enviamos el caracter actual
+        i++;
+    }
+}
+
+void setup(void){
+    ANSEL = 0b00001111;
+    ANSELH = 0;
+    
+    TRISA = 0b00001111;
+    PORTA = 0;
+    TRISD = 0;
+    PORTD = 0;
+    
+    OSCCONbits.IRCF = 0b111;
+    OSCCONbits.SCS = 1;
+
+    ADCON1bits.ADFM = 0;
+    ADCON1bits.VCFG0 = 0;
+    ADCON1bits.VCFG1 = 0;
+    ADCON0bits.ADCS = 0b10;
+    //ADCON0bits.CHS = 0b0000;
+    ADCON0bits.ADON = 1;
+    __delay_us(50);
+    TRISCbits.TRISC2 = 1;
+    TRISCbits.TRISC1 = 1;
+    CCP1CONbits.P1M = 0;
+    CCP1CONbits.CCP1M = 0b1100;
+    CCP2CONbits.CCP2M = 0b1100;
+    CCPR1L = 0x0F;
+    CCP1CONbits.DC1B = 0;
+    CCPR2L = 0x0F;
+    CCP2CONbits.DC2B1 = 0;
+    CCP2CONbits.DC2B0 = 0;
+    OPTION_REGbits.T0CS = 0;
+    
+
+
+    //TMR0 = 255;
+    PR2 = 255;
+    T2CONbits.T2CKPS = 0b11;
+    T2CONbits.TMR2ON = 1;
+    PIR1bits.TMR2IF = 0;
+    while (PIR1bits.TMR2IF == 0);
+    PIR1bits.TMR2IF = 0;
+    TRISCbits.TRISC2 = 0;
+    TRISCbits.TRISC1 = 0;
+    INTCONbits.GIE = 1;
+    INTCONbits.PEIE = 1;
+    PIE1bits.ADIE = 1;
+    INTCONbits.TMR0IE = 1;
+    PIR1bits.ADIF = 0;
+    INTCONbits.T0IF = 0;
+    PIE1bits.TMR1IE = 1;      // Habilitar interrupción del Timer1
+
+    
+    /////////////////////////
+    
+    TXSTAbits.SYNC = 0; // Modo asíncrono
+    TXSTAbits.BRGH = 1; // BRG de alta velocidad
+    
+    BAUDCTLbits.BRG16 = 1; // Se habilita la división del BRG en 16 bits
+    
+    SPBRG = 207; // Se configura el valor del BRG para una velocidad de 9600 bps
+    SPBRGH = 0;
+    
+    RCSTAbits.SPEN = 1; // Se habilita el puerto serie
+    RCSTAbits.RX9 = 0; // No se utiliza bit de paridad
+    RCSTAbits.CREN = 1; // Se habilita la recepción continua
+    
+    TXSTAbits.TXEN = 1; // Se habilita la transmisión   
+   
+   
+}
